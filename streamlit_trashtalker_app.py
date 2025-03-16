@@ -60,7 +60,11 @@ def main():
     if st.button("Submit Vote"):
         classification_result = classify_plastic(selected_option)
         vote(selected_option)
-        st.success(f"Thank you for voting! According to our model, '{selected_option}' is {classification_result}.")
+        
+        if classification_result == "Recyclable":
+            st.success(f"Thank you for voting! According to our model, '{selected_option}' is {classification_result}.")
+        else:
+            st.error(f"Thank you for voting! According to our model, '{selected_option}' is {classification_result}.", icon="🚨")
     
     st.subheader("Poll Results")
     poll_data = load_data()
