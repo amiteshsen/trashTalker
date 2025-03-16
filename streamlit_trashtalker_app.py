@@ -32,7 +32,7 @@ clf = RandomForestClassifier(n_estimators=10, random_state=42)
 clf.fit(X_train, y_train)
 
 def load_data():
-    if os.path.exists(POLL_FILE):
+    if os.path.exists(POLL_FILE) and os.path.getsize(POLL_FILE) > 0:
         return pd.read_csv(POLL_FILE)
     else:
         return pd.DataFrame(columns=["Option", "Votes"])
