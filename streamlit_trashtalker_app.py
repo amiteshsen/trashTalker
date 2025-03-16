@@ -5,8 +5,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
+# Ensure data directory exists
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
+
 # File to store poll data
-POLL_FILE = "data/poll_results.csv"
+POLL_FILE = os.path.join(DATA_DIR, "poll_results.csv")
 
 # Sample dataset for classification (simulated)
 data = pd.DataFrame({
