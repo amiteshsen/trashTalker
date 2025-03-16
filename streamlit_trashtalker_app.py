@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
 # File to store poll data
-POLL_FILE = "poll_results.csv"
+POLL_FILE = "data/poll_results.csv"
 
 # Sample dataset for classification (simulated)
 data = pd.DataFrame({
