@@ -1,81 +1,123 @@
-import streamlit as st
+import io, urllib.parse, requests
+from PIL import Image, ImageOps, ImageDraw, ImageFont
 import pandas as pd
-import os
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
+import streamlit as st
 
-# Ensure data directory exists
-DATA_DIR = "data"
-os.makedirs(DATA_DIR, exist_ok=True)
+st.set_page_config(page_title="Roboflow Inference", layout="wide")
+st.title("🔍 Roboflow Hosted API — Image Detector")
 
-# File to store poll data
-POLL_FILE = os.path.join(DATA_DIR, "poll_results.csv")
+# ---------------- Sidebar config ----------------
+st.sidebar.header("Settings")
+PROJECT = st.sidebar.text_input("Project slug", value="trashtalkerobjectdetection-7pded")
+VERSION = st.sidebar.number_input("Version", min_value=1, value=3, step=1)
+API_URL = st.sidebar.selectbox("Endpoint", ["https://detect.roboflow.com", "https://infer.roboflow.com"])
+API_KEY = st.sidebar.text_input("API key", value=st.secrets.get("ROBOFLOW_API_KEY", ""), type="password")
+CONF = st.sidebar.slider("Confidence (percent)", 0, 100, 42)
+OVERLAP = st.sidebar.slider("Overlap / NMS (%)", 0, 100, 50)
+st.sidebar.markdown("---")
+MAX_SIDE = st.sidebar.slider("Resize (max side px)", 512, 2048, 1024, step=64)
+QUALITY = st.sidebar.slider("JPEG quality", 50, 95, 80)
+st.sidebar.caption("Lower these if you still hit 413.")
 
-# Sample dataset for classification (simulated)
-data = pd.DataFrame({
-    "Plastic Type": ["Plastic Bottles", "Plastic Bags", "Styrofoam", "Food Containers"],
-    "Recyclable": [1, 0, 0, 1]
-})
+# ---------------- Inputs ----------------
+col_up, col_url = st.columns([1, 1])
+with col_up:
+    file = st.file_uploader("Upload image", type=["jpg", "jpeg", "png", "webp", "bmp", "tiff"])
+with col_url:
+    url_in = st.text_input("...or paste a PUBLIC image URL")
 
-# Encoding labels
-label_encoder = LabelEncoder()
-data["Plastic Type"] = label_encoder.fit_transform(data["Plastic Type"])
+run = st.button("Run detection", type="primary")
 
-# Splitting data
-X = data[["Plastic Type"]]
-y = data["Recyclable"]
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# ---------------- Helpers ----------------
+def compress_image(file_like, max_side=1024, quality=80):
+    im = Image.open(file_like)
+    im = ImageOps.exif_transpose(im)
+    im.thumbnail((max_side, max_side))  # keep aspect ratio
+    buf = io.BytesIO()
+    im.convert("RGB").save(buf, "JPEG", quality=quality, optimize=True, progressive=True)
+    buf.seek(0)
+    return im, buf  # (PIL image shown to user, JPEG bytes sent to API)
 
-# Train classifier
-clf = RandomForestClassifier(n_estimators=10, random_state=42)
-clf.fit(X_train, y_train)
+def draw_preds(pil_img, preds):
+    img = pil_img.copy()
+    draw = ImageDraw.Draw(img)
+    # You can load a TTF if you want consistent font sizing
+    for p in preds:
+        xc, yc = p["x"], p["y"]
+        w, h = p["width"], p["height"]
+        x1, y1 = xc - w / 2, yc - h / 2
+        x2, y2 = xc + w / 2, yc + h / 2
+        label = f'{p.get("class", "obj")} {p.get("confidence", 0):.2f}'
+        draw.rectangle([x1, y1, x2, y2], outline=(0, 255, 0), width=3)
+        tw, th = draw.textlength(label), 14
+        draw.rectangle([x1, y1 - 18, x1 + tw + 6, y1], fill=(0, 255, 0))
+        draw.text((x1 + 3, y1 - 16), label, fill=(0, 0, 0))
+    return img
 
-def load_data():
-    if os.path.exists(POLL_FILE) and os.path.getsize(POLL_FILE) > 0:
-        return pd.read_csv(POLL_FILE)
+def preds_to_df(preds):
+    if not preds:
+        return pd.DataFrame(columns=["class", "confidence", "x", "y", "width", "height", "x1", "y1", "x2", "y2"])
+    rows = []
+    for p in preds:
+        xc, yc, w, h = p["x"], p["y"], p["width"], p["height"]
+        rows.append({
+            "class": p.get("class"), "confidence": round(float(p.get("confidence", 0.0)), 4),
+            "x": xc, "y": yc, "width": w, "height": h,
+            "x1": xc - w/2, "y1": yc - h/2, "x2": xc + w/2, "y2": yc + h/2
+        })
+    return pd.DataFrame(rows)
+
+# ---------------- Run ----------------
+if run:
+    if not API_KEY:
+        st.error("Add your API key in the sidebar (or .streamlit/secrets.toml).")
+    elif not (file or url_in):
+        st.warning("Upload an image or paste a public image URL.")
     else:
-        return pd.DataFrame(columns=["Option", "Votes"])
+        endpoint = f"{API_URL.rstrip('/')}/{PROJECT}/{int(VERSION)}"
+        params = {"api_key": API_KEY, "confidence": int(CONF), "overlap": int(OVERLAP), "format": "json"}
 
-def save_data(data):
-    data.to_csv(POLL_FILE, index=False)
+        try:
+            if file:
+                pil_in, jpeg_buf = compress_image(file, max_side=MAX_SIDE, quality=QUALITY)
+                st.info(f"Sending ~{len(jpeg_buf.getbuffer())//1024} KB after compression ({pil_in.size[0]}x{pil_in.size[1]}).")
+                resp = requests.post(endpoint, params=params, files={"file": ("image.jpg", jpeg_buf, "image/jpeg")}, timeout=60)
+            else:
+                # URL ingestion (no upload size issue)
+                qs = {"api_key": API_KEY, "image": url_in, "confidence": int(CONF), "overlap": int(OVERLAP), "format": "json"}
+                # NOTE: For safety, we still show a preview image if URL is valid
+                try:
+                    pil_in = Image.open(requests.get(url_in, stream=True, timeout=20).raw)
+                except Exception:
+                    pil_in = None
+                resp = requests.get(endpoint, params=qs, timeout=60)
 
-def vote(option):
-    data = load_data()
-    if option in data["Option"].values:
-        data.loc[data["Option"] == option, "Votes"] += 1
-    else:
-        new_row = pd.DataFrame({"Option": [option], "Votes": [1]})
-        data = pd.concat([data, new_row], ignore_index=True)
-    save_data(data)
+            st.write(f"Status: {resp.status_code}")
+            if resp.status_code == 413:
+                st.error("413 Request Entity Too Large — reduce image size/quality or use a public URL.")
+            resp.raise_for_status()
 
-def classify_plastic(option):
-    encoded_option = label_encoder.transform([option])[0]
-    prediction = clf.predict([[encoded_option]])[0]
-    return "Recyclable" if prediction == 1 else "Not Recyclable"
+            data = resp.json()
+            preds = data.get("predictions", [])
+            df = preds_to_df(preds)
 
-def main():
-    st.title("Recycling Awareness Poll")
-    st.write("Which of the following household plastics do you think can be recycled?")
-    
-    options = ["Plastic Bottles", "Plastic Bags", "Styrofoam", "Food Containers"]
-    selected_option = st.radio("Choose one:", options)
-    
-    if st.button("Submit Vote"):
-        classification_result = classify_plastic(selected_option)
-        vote(selected_option)
-        
-        if classification_result == "Recyclable":
-            st.success(f"Thank you for voting! According to our model, '{selected_option}' is {classification_result}.")
-        else:
-            st.error(f"Thank you for voting! According to our model, '{selected_option}' is {classification_result}.", icon="🚨")
-    
-    st.subheader("Poll Results")
-    poll_data = load_data()
-    if not poll_data.empty:
-        st.bar_chart(poll_data.set_index("Option"))
-    else:
-        st.write("No votes yet. Be the first to vote!")
+            col1, col2 = st.columns([1.2, 1])
+            with col1:
+                if pil_in is None and file:
+                    pil_in, _ = compress_image(file, max_side=MAX_SIDE, quality=QUALITY)
+                if pil_in is not None:
+                    st.subheader("Detections")
+                    st.image(draw_preds(pil_in, preds), caption="Overlay", use_column_width=True)
+            with col2:
+                st.subheader("Raw predictions")
+                st.dataframe(df, use_container_width=True)
+                st.download_button(
+                    "Download JSON", data=io.BytesIO(resp.content).getvalue(),
+                    file_name="predictions.json", mime="application/json"
+                )
 
-if __name__ == "__main__":
-    main()
+        except requests.HTTPError as e:
+            st.error(f"HTTP error: {e}\nBody: {getattr(e.response, 'text', '')[:300]}")
+        except Exception as e:
+            st.exception(e)
+
