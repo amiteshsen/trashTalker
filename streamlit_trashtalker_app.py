@@ -2,63 +2,186 @@ import io, re, requests
 from PIL import Image, ImageOps, ImageDraw
 import pandas as pd
 import streamlit as st
+import threading
+import time
+
+import os
+BASE_DIR = os.path.dirname(__file__)
 
 # ---------- PAGE ----------
-st.set_page_config(page_title="TrashTalker", layout="wide", initial_sidebar_state="collapsed")
-# hide sidebar entirely
-## Run Detection style ##
+st.set_page_config(
+    page_title="AI-Powered Recyclable Material Detector",
+    page_icon="♻️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+import streamlit as st
+import streamlit.components.v1 as components
+
+# 1) Strong, early CSS injection (works even if normal markdown is finicky)
+CSS = r"""
+/* ===== sanity check: turn h1 text blue briefly ===== */
+h1 { color: #2563eb !important; }
+
+/* ----- Center the tab row ("Upload","URL","Camera") and color active ----- */
+div[role="tablist"] { justify-content: center; gap: 12px; margin: 10px 0 6px; }
+div[role="tablist"] button[role="tab"]{
+  border: 1.5px solid #e5e7eb; background: #fff; color:#374151; padding:8px 16px;
+  border-radius:999px; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.06);
+}
+div[role="tablist"] button[role="tab"]:hover{ border-color:#cbd5e1; background:#f8fafc; }
+div[role="tablist"] button[role="tab"][aria-selected="true"]{
+  color:#fff; border-color:transparent; box-shadow:0 6px 18px rgba(0,0,0,.08);
+  background: linear-gradient(90deg,#2563eb,#22c55e);
+}
+
+/* ----- Compact centered uploader; "Browse files" centered; hint below ----- */
+.uploader-center { max-width: 380px; margin: 0 auto; }
+.uploader-center [data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] { padding:14px; background:#f3f4f6; border:1px solid #e5e7eb; border-radius:12px; }
+.uploader-center [data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] > div{
+  display:flex !important; flex-direction:column-reverse !important; align-items:center !important; gap:8px; text-align:center;
+}
+/* center the Browse control regardless of markup differences */
+.uploader-center [data-testid="stFileUploaderDropzone"] label,
+.uploader-center [data-testid="stFileUploaderDropzone"] button,
+.uploader-center [data-testid="stFileUploaderDropzone"] [role="button"]{
+  margin:0 auto !important; align-self:center !important; display:inline-flex !important; justify-content:center;
+  background:#e5e7eb !important; color:#2563eb !important; border:1px solid #d1d5db !important; border-radius:999px !important;
+  padding:8px 16px !important; font-weight:700 !important;
+}
+.uploader-center [data-testid="stFileUploaderDropzone"] [role="button"]:hover{ background:#d1d5db !important; }
+
+/* ----- Gray expander headers + TrashTalker text color (Settings, Quick Quiz) ----- */
+.gray-expander [data-testid="stExpander"] > details > summary{
+  background:#f3f4f6; border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; color:#2563eb !important; font-weight:700;
+}
+
+/* ----- Center & theme the Run Detection button (works primary/secondary) ----- */
+.run-btn [data-testid="baseButton-primary"],
+.run-btn .stButton > button[kind="primary"],
+.run-btn [data-testid="baseButton-secondary"],
+.run-btn .stButton > button[kind="secondary"],
+.run-btn .stButton > button:not([kind]) {
+  background: linear-gradient(90deg, #2563eb, #22c55e) !important;
+  color:#fff !important; border:none !important; border-radius:999px !important; padding:10px 24px !important;
+  font-weight:800 !important; letter-spacing:.02em; box-shadow:0 10px 24px rgba(37,99,235,.25);
+}
+.run-btn .stButton > button:hover{ filter:brightness(1.05); transform:translateY(-1px); box-shadow:0 12px 28px rgba(34,197,94,.30); }
+
+/* ----- Smaller detection image ----- */
+.detect-img { display:block; margin:0 auto; max-width:420px; }
+"""
+
+# inject into the main document head reliably
+components.html(f"<style>{CSS}</style>", height=0, scrolling=False)
+
+## Buttons background ###
 st.markdown("""
 <style>
-/* Only style the Run Detection button wrapped in .run-btn */
-.run-btn .stButton > button {
-  background: linear-gradient(90deg, #10b981, #06b6d4) !important; /* teal → cyan */
-  color: #ffffff !important;
-  border: none !important;
-  border-radius: 999px !important;     /* pill */
-  padding: 10px 24px !important;
-  font-weight: 700 !important;
-  box-shadow: 0 8px 20px rgba(6,182,212,0.25);
+/* --- Centered, compact uploader wrapper --- */
+.uploader-center { max-width: 380px; margin: 0 auto; }
+
+/* Put the hint text UNDER the Browse button and center everything */
+.uploader-center [data-testid="stFileUploaderDropzone"] { padding: 14px; }
+.uploader-center [data-testid="stFileUploaderDropzone"] > div {
+  display: flex !important;
+  flex-direction: column-reverse !important;  /* hint below the button */
+  align-items: center !important;
+  gap: 8px; text-align: center;
 }
-.run-btn .stButton > button:hover {
-  filter: brightness(1.05);
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(6,182,212,0.32);
+
+/* Gray background for the whole dropzone */
+.uploader-center [data-testid="stFileUploaderDropzone"] {
+  background: #f3f4f6;                 /* gray-100 */
+  border: 1px solid #e5e7eb;           /* gray-200 */
+  border-radius: 12px;
 }
-.run-btn .stButton > button:active {
-  transform: translateY(0);
+
+/* Force the Browse button to be centered + gray */
+.uploader-center [data-testid="stFileUploaderDropzone"] label,
+.uploader-center [data-testid="stFileUploaderDropzone"] button,
+.uploader-center [data-testid="stFileUploaderDropzone"] [role="button"]{
+  margin: 0 auto !important;
+  align-self: center !important;
+  display: inline-flex !important;
+  justify-content: center;
+  background: #e5e7eb !important;      /* gray-200 button */
+  color: #111827 !important;            /* gray-900 text */
+  border: 1px solid #d1d5db !important; /* gray-300 */
+  border-radius: 999px !important;      /* pill */
+  padding: 8px 16px !important;
+  font-weight: 600 !important;
 }
-.run-btn .stButton > button:focus-visible{
-  outline: 3px solid #99f6e4 !important;  /* accessible focus ring */
+.uploader-center [data-testid="stFileUploaderDropzone"] [role="button"]:hover{
+  background:#d1d5db !important;        /* gray-300 hover */
+}
+
+/* Gray headers for Settings & Quick Quiz expanders */
+.gray-expander [data-testid="stExpander"] > details > summary{
+  background: #f3f4f6;                  /* gray-100 */
+  border: 1px solid #e5e7eb;            /* gray-200 */
+  border-radius: 10px;
+  padding: 10px 12px;
+  list-style: none;
+}
+.gray-expander [data-testid="stExpander"] > details > summary:focus-visible{
+  outline: 3px solid #93c5fd;           /* focus ring */
   outline-offset: 2px;
 }
 </style>
 """, unsafe_allow_html=True)
 
 
-
 st.markdown("""
 <style>
-/* Big, Google-y, ALL CAPS hero */
-.hero-wrap { text-align:center; margin: 8px auto 12px; }
-.hero-title{
-  font-family:'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-  text-transform:uppercase;
-  font-weight:900;
-  letter-spacing:.14em;
-  line-height:1;
-  /* responsive size: scales from phones to desktops */
-  font-size: clamp(40px, 9vw, 96px);
-  /* gradient ink + soft glow */
-  background: linear-gradient(90deg,#2563eb,#22c55e);
-  -webkit-background-clip:text; background-clip:text; color:transparent;
-  filter: drop-shadow(0 6px 20px rgba(0,0,0,.10));
-  margin: 4px 0 8px;
+/* Reduce the empty space above the header */
+.hero-wrap {
+  text-align: center;
+  margin-top: -30px;        /* pulls it up slightly */
+  margin-bottom: 16px;
+  line-height: 1.25;
+  padding-top: 0;
 }
-.hero-accent{
-  height:6px; width: clamp(140px, 22vw, 260px);
-  margin: 6px auto 0;
-  background: linear-gradient(90deg,#22c55e,#38bdf8);
-  border-radius: 999px;
+
+/* Remove default Streamlit top padding */
+[data-testid="stAppViewContainer"] > .main {
+  padding-top: 1rem !important;   /* default is ~6rem; this brings it up */
+}
+.hero-title {
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: .08em;
+  font-size: clamp(34px, 5vw, 54px);
+  background: linear-gradient(90deg, #2563eb, #22c55e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, .08));
+  margin-bottom: 6px;
+}
+
+.hero-tagline {
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  font-size: clamp(16px, 2vw, 22px);
+  font-weight: 500;
+  color: #4b5563;
+  letter-spacing: .01em;
+  margin-top: 0;
+}
+
+/* NEW subtitle styling */
+.hero-subtitle {
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  font-weight: 600;
+  font-size: clamp(18px, 2.5vw, 26px);  /* slightly larger */
+  letter-spacing: .03em;
+  background: linear-gradient(90deg, #22c55e, #38bdf8); /* matches site theme */
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,.08));
+  margin-top: 0;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -236,8 +359,47 @@ h1 { text-align:center; font-weight:500; letter-spacing:.2px; margin: 8px 0 2px;
 .result-yes { background: var(--tt-green-bg); color: var(--tt-green); border: 2px solid #34d399; }
 .result-no  { background: var(--tt-amber-bg); color: var(--tt-amber); border: 2px solid #fdba74; }
 
-/* Keep layout narrow like google.com hero */
-.main-narrow { max-width: 800px; margin: 0 auto; }
+/* Completely remove default top padding/margin from Streamlit containers */
+section.main > div:first-child {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+
+/* Override internal padding inside block container */
+.block-container {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+
+/* Optional: pull hero up slightly if still too low */
+.hero-wrap {
+  margin-top: -40px !important;   /* Adjust: -20 to -60 */
+  margin-bottom: 16px !important;
+  line-height: 1.2;
+}
+
+/* --- Final top-spacing fix for Streamlit --- */
+
+/* Kill padding/margin in every top-level container */
+section.main, .block-container, .block-container > div, [data-testid="stVerticalBlock"] {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+}
+
+/* Specifically target the first visible block to remove top padding */
+section.main > div:first-child,
+.block-container > div:first-child,
+[data-testid="stVerticalBlock"] > div:first-child {
+    margin-top: -40px !important;  /* pull up hero tighter to top */
+}
+
+/* Keep your hero spacing consistent */
+.hero-wrap {
+    margin-top: -40px !important;
+    margin-bottom: 12px !important;
+    line-height: 1.2;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -260,15 +422,101 @@ MAX_SIDE = st.session_state.get("MAX_SIDE", DEFAULTS["MAX_SIDE"])
 QUALITY  = st.session_state.get("QUALITY",  DEFAULTS["QUALITY"])
 API_KEY  = st.secrets.get("ROBOFLOW_API_KEY") or st.session_state.get("API_KEY", "")
 
-# ---------- TITLE + SUBTEXT (centered, Google-simple) ----------
+# ---------- HEADER SECTION ----------
 st.markdown("""
-<div class="hero-wrap">
-  <div class="hero-title">TrashTalker</div>
+<div class="hero-wrap" style="margin-top:-10px;">
+  <div class="hero-title"> TrashTalker </div>
+  <div class="hero-accent">
+  <div class="hero-tagline">
+  AI-driven material detection and sorting for a cleaner planet
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ---------- IMAGE SLIDER SECTION ----------
+col_left, col_right = st.columns(2, gap="large")
+
+BASE_DIR = os.path.dirname(__file__)
+
+# Image paths
+trash_images = [
+    os.path.join(BASE_DIR, "assets", "smartbin1.jpg"),
+    os.path.join(BASE_DIR, "assets", "smartbin2.jpg"),
+    os.path.join(BASE_DIR, "assets", "smartbin3.jpg"),
+]
+nextrex_images = [
+    os.path.join(BASE_DIR, "assets", "nextrex1.jpg"),
+    os.path.join(BASE_DIR, "assets", "nextrex2.jpg"),
+    os.path.join(BASE_DIR, "assets", "nextrex3.jpg"),
+]
+
+# Initialize indices once
+if "trash_idx" not in st.session_state:
+    st.session_state.trash_idx = 0
+if "nextrex_idx" not in st.session_state:
+    st.session_state.nextrex_idx = 0
+
+# Helper function to load images safely
+def load_uniform(path, box_size=(400, 300), fill=(245, 245, 245)):
+    """Load image with correct EXIF orientation and pad to fixed size."""
+    img = Image.open(path).convert("RGB")
+    # ✅ Correct orientation from camera EXIF (prevents sideways rotation)
+    img = ImageOps.exif_transpose(img)
+    # Resize while preserving aspect ratio
+    img.thumbnail(box_size, Image.Resampling.LANCZOS)
+    # Center the image inside a padded background to keep dimensions consistent
+    bg = Image.new("RGB", box_size, fill)
+    x = (box_size[0] - img.width) // 2
+    y = (box_size[1] - img.height) // 2
+    bg.paste(img, (x, y))
+    return bg
+
+# Left column — TrashTalker images
+with col_left:
+    st.markdown("### TrashTalker Smart Bin Prototype")
+    img = load_uniform(trash_images[st.session_state.trash_idx])
+    st.image(img, use_container_width=True)
+    c1, c2, c3 = st.columns([1, 4, 1])
+    with c1:
+        if st.button("←", key="prev_trash"):
+            st.session_state.trash_idx = (st.session_state.trash_idx - 1) % len(trash_images)
+    with c3:
+        if st.button("→", key="next_trash"):
+            st.session_state.trash_idx = (st.session_state.trash_idx + 1) % len(trash_images)
+    st.markdown(
+        f"<p style='text-align:center;color:#6b7280;'>Image {st.session_state.trash_idx+1} of {len(trash_images)}</p>",
+        unsafe_allow_html=True,
+    )
+
+# Right column — NexTrex images
+with col_right:
+    st.markdown("### NexTrex Sustainability Initiative")
+    img = load_uniform(nextrex_images[st.session_state.nextrex_idx])
+    st.image(img, use_container_width=True)
+    c1, c2, c3 = st.columns([1, 4, 1])
+    with c1:
+        if st.button("←", key="prev_nextrex"):
+            st.session_state.nextrex_idx = (st.session_state.nextrex_idx - 1) % len(nextrex_images)
+    with c3:
+        if st.button("→", key="next_nextrex"):
+            st.session_state.nextrex_idx = (st.session_state.nextrex_idx + 1) % len(nextrex_images)
+    st.markdown(
+        f"<p style='text-align:center;color:#6b7280;'>Image {st.session_state.nextrex_idx+1} of {len(nextrex_images)}</p>",
+        unsafe_allow_html=True,
+    )
+st.markdown("<div style='height:6vh;'></div>", unsafe_allow_html=True)
+
+st.markdown("""
+<div class="hero-wrap" style="margin-top:0; margin-bottom:16px;">
+  <div class="hero-subtitle">
+    AI Engine to detect non-recyclable plastic
+  </div>
   <div class="hero-accent"></div>
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='tagline centered'><strong>Upload or take a picture to predict</strong></div>", unsafe_allow_html=True)
+st.markdown("<div class='tagline centered'><strong>Check non-recylcable plastic: Upload or take a picture </strong></div>", unsafe_allow_html=True)
 
 st.markdown("<div class='main-narrow'>", unsafe_allow_html=True)
 
@@ -343,8 +591,10 @@ tab_up, tab_url, tab_cam = st.tabs(["Upload", "URL", "Camera"])
 with tab_up:
     st.markdown("<div class='uploader-center'>", unsafe_allow_html=True)
     file = st.file_uploader(
-        label="", type=["jpg","jpeg","png","webp","bmp","tiff"],
-        label_visibility="collapsed", key="uploader_main"
+        "Upload image",                          # real label (kept accessible)
+        type=["jpg","jpeg","png","webp","bmp","tiff"],
+        label_visibility="collapsed",
+        key="uploader_main"
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -410,9 +660,9 @@ if run:
                     if pil_in is None and (file or cam_file):
                         pil_in, _ = compress_image(file or cam_file, max_side=MAX_SIDE, quality=QUALITY)
                     if pil_in is not None and preds:
-                        st.image(draw_preds(pil_in, preds), use_column_width=False, width=420)  # ~420px wide
+                        st.image(draw_preds(pil_in, preds), use_container_width=False, width=420)  # ~420px wide
                     elif pil_in is not None:
-                        st.image(pil_in, use_column_width=True)
+                        st.image(pil_in, use_container_width=True)
 
                 with col_right:
                     st.markdown("### Result")
@@ -437,6 +687,7 @@ if run:
 # ---------- BOTTOM SECTION: Settings & Quiz ----------
 st.markdown("---")
 
+st.markdown("<div class='gray-expander'>", unsafe_allow_html=True)
 with st.expander("⚙️ Settings", expanded=False):
     c1, c2, c3 = st.columns([1.2, 1, 1])
     with c1:
@@ -457,7 +708,9 @@ with st.expander("⚙️ Settings", expanded=False):
         help="On Streamlit Cloud, set in Manage app → Settings → Secrets. Locally, use .streamlit/secrets.toml",
         key="API_KEY_in"
     )
+st.markdown("</div>", unsafe_allow_html=True)
 
+st.markdown("<div class='gray-expander'>", unsafe_allow_html=True)
 with st.expander("🧠 Quick Quiz: What goes where?", expanded=False):
     q = [
         ("Plastic grocery bags?", ["Curbside bin", "Store drop-off / special", "Landfill"], "Store drop-off / special",
@@ -481,3 +734,4 @@ with st.expander("🧠 Quick Quiz: What goes where?", expanded=False):
                 for i, a in enumerate(answers):
                     if a != q[i][2]:
                         st.write(f"• **{q[i][0]}** — {q[i][3]}")
+st.markdown("</div>", unsafe_allow_html=True)
