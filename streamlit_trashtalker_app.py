@@ -527,7 +527,7 @@ def load_filled(path, box_size=(400, 300)):
     img = ImageOps.fit(img, box_size, Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     return img
 
-def load_fit_dark(path, box_size=(400, 300), bg_color=(55, 65, 81)):
+def load_fit_dark(path, box_size=(400, 300), bg_color=(14, 17, 23)):
     """
     Open image, fix orientation, and fit it into a Streamlit-dark background box.
     Keeps full image visible and avoids patchwork. (#374151 ≈ rgb(55,65,81))
