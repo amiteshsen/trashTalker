@@ -2,6 +2,7 @@ import io, re, requests
 from PIL import Image, ImageOps, ImageDraw, ImageFilter
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 import threading
 import time
 
@@ -15,8 +16,41 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-import streamlit as st
-import streamlit.components.v1 as components
+
+# ---- Force theme primary color to blue-green ----
+st.markdown("""
+<style>
+:root {
+    --primary-color: #2563eb;       /* Deep blue */
+    --secondary-color: #22c55e;     /* Bright green */
+    --text-color: #ffffff;
+}
+
+/* Override Streamlit's button primary color */
+button[kind="primary"], button[data-testid="baseButton-primary"] {
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color)) !important;
+    color: var(--text-color) !important;
+    border: none !important;
+    border-radius: 999px !important;
+    padding: 10px 26px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em;
+    box-shadow: 0 6px 16px rgba(37,99,235,.25), 0 4px 12px rgba(34,197,94,.25);
+    transition: all 0.25s ease-in-out;
+}
+
+/* Hover + active */
+button[kind="primary"]:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+}
+button[kind="primary"]:active {
+    transform: scale(0.97);
+    filter: brightness(0.9);
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 # 1) Strong, early CSS injection (works even if normal markdown is finicky)
 CSS = r"""
@@ -116,17 +150,53 @@ st.markdown("""
   background:#d1d5db !important;        /* gray-300 hover */
 }
 
-/* Gray headers for Settings & Quick Quiz expanders */
-.gray-expander [data-testid="stExpander"] > details > summary{
-  background: #f3f4f6;                  /* gray-100 */
-  border: 1px solid #e5e7eb;            /* gray-200 */
-  border-radius: 10px;
-  padding: 10px 12px;
-  list-style: none;
+/* === Unified expander styling matching the uploader box === */
+.gray-expander [data-testid="stExpander"] > details {
+  background: #f8fafc !important;           /* slightly darker gray-blue than page bg */
+  border: 1.5px solid #e5e7eb !important;
+  border-radius: 14px !important;
+  margin-top: 16px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  overflow: hidden;
 }
-.gray-expander [data-testid="stExpander"] > details > summary:focus-visible{
-  outline: 3px solid #93c5fd;           /* focus ring */
-  outline-offset: 2px;
+
+/* Expander header — bold, blue-green accent */
+.gray-expander [data-testid="stExpander"] > details > summary {
+  background: linear-gradient(90deg, rgba(37,99,235,0.08), rgba(34,197,94,0.08)) !important;
+  color: #2563eb !important;                /* same blue as tagline */
+  font-weight: 700 !important;
+  padding: 14px 16px !important;
+  font-size: 1rem !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  text-align: left !important;
+  cursor: pointer;
+  transition: all 0.25s ease-in-out;
+}
+
+/* Hover effect — more vibrant gradient */
+.gray-expander [data-testid="stExpander"] > details > summary:hover {
+  background: linear-gradient(90deg, rgba(37,99,235,0.15), rgba(34,197,94,0.15)) !important;
+}
+
+/* Expanded content area */
+.gray-expander [data-testid="stExpander"] > details[open] {
+  background: #f9fafb !important;
+  border-radius: 14px !important;
+  padding-bottom: 14px !important;
+}
+
+/* Inner content spacing */
+.gray-expander [data-testid="stExpander"] div[data-testid="stExpanderContent"] {
+  padding: 12px 16px 0 16px !important;
+}
+
+/* Smooth open animation */
+.gray-expander details[open] summary ~ * {
+  animation: fadeIn 0.25s ease-in;
+}
+@keyframes fadeIn {
+  from {opacity: 0; transform: translateY(-4px);}
+  to {opacity: 1; transform: translateY(0);}
 }
 
 /* === Remove top padding added by Streamlit === */
@@ -170,6 +240,61 @@ section.main > div:first-child {
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+/* ==== FORCE consistent look for Settings + Quick Quiz expanders ==== */
+
+/* 1️⃣ Outer expander box */
+[data-testid="stExpander"] {
+  background: #f3f4f6 !important;            /* visible gray tone */
+  border: 1.5px solid #e5e7eb !important;    /* gray-200 */
+  border-radius: 14px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  margin-top: 18px !important;
+  overflow: hidden;
+}
+
+/* 2️⃣ Expander header */
+[data-testid="stExpander"] > details > summary {
+  background: linear-gradient(90deg, rgba(37,99,235,0.10), rgba(34,197,94,0.10)) !important;
+  color: #2563eb !important;                 /* theme blue */
+  font-weight: 700 !important;
+  font-size: 1rem !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  padding: 14px 18px !important;
+  cursor: pointer;
+  transition: background 0.25s ease-in-out;
+  list-style: none;
+}
+
+/* 3️⃣ Hover gradient */
+[data-testid="stExpander"] > details > summary:hover {
+  background: linear-gradient(90deg, rgba(37,99,235,0.20), rgba(34,197,94,0.20)) !important;
+}
+
+/* 4️⃣ Expanded content area */
+[data-testid="stExpander"] > details[open] {
+  background: #f9fafb !important;            /* slightly lighter */
+  border-radius: 0 0 14px 14px !important;
+  padding-bottom: 12px !important;
+}
+
+/* 5️⃣ Inner content padding */
+[data-testid="stExpanderContent"] {
+  padding: 12px 18px !important;
+  background: #f9fafb !important;
+}
+
+/* 6️⃣ Smooth open animation */
+[data-testid="stExpander"] details[open] summary ~ * {
+  animation: fadeIn 0.25s ease-in;
+}
+@keyframes fadeIn {
+  from {opacity: 0; transform: translateY(-4px);}
+  to {opacity: 1; transform: translateY(0);}
+}
+</style>
+""", unsafe_allow_html=True)
 
 st.markdown("""
 <style>
@@ -519,6 +644,86 @@ img {
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+/* Target ONLY the Run Detection button — by position and text */
+div[data-testid="stVerticalBlock"] button[kind="primary"],
+div[data-testid="stVerticalBlock"] button:has(span:contains("Run Detection")) {
+    background: linear-gradient(90deg, #2563eb, #22c55e) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 999px !important;
+    padding: 10px 28px !important;
+    font-weight: 800 !important;
+    font-size: 1rem !important;
+    letter-spacing: .02em !important;
+    box-shadow: 0 6px 18px rgba(37,99,235,.25), 0 4px 14px rgba(34,197,94,.25) !important;
+    transition: all 0.25s ease-in-out !important;
+}
+
+/* Hover and active effects */
+div[data-testid="stVerticalBlock"] button[kind="primary"]:hover {
+    filter: brightness(1.08);
+    transform: translateY(-2px);
+}
+div[data-testid="stVerticalBlock"] button[kind="primary"]:active {
+    transform: scale(0.97);
+    filter: brightness(0.9);
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+/* === Match Settings & Quick Quiz with Drag-and-Drop container === */
+.gray-expander [data-testid="stExpander"] > details {
+  background: #f3f4f6 !important;            /* same as uploader bg (#f3f4f6) */
+  border: 1px solid #e5e7eb !important;      /* light gray border */
+  border-radius: 12px !important;
+  padding: 0 !important;
+  margin-top: 12px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);    /* soft depth */
+}
+
+/* Expander header styling (matches uploader text color & shape) */
+.gray-expander [data-testid="stExpander"] > details > summary {
+  background: #f3f4f6 !important;
+  color: #2563eb !important;                /* blue theme color */
+  font-weight: 700 !important;
+  padding: 12px 14px !important;
+  border-radius: 12px !important;
+  border: 1px solid #e5e7eb !important;
+  text-align: left !important;
+  list-style: none !important;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Hover effect for consistency */
+.gray-expander [data-testid="stExpander"] > details > summary:hover {
+  background: #e5e7eb !important;           /* gray-200 hover like uploader */
+  border-color: #d1d5db !important;
+}
+
+/* Content area matches uploader container background */
+.gray-expander [data-testid="stExpander"] > details[open] {
+  background: #f3f4f6 !important;
+  border-radius: 12px !important;
+  padding-bottom: 12px !important;
+}
+
+/* Smooth expand animation */
+.gray-expander details[open] summary ~ * {
+  animation: fadeIn 0.25s ease-in;
+}
+@keyframes fadeIn {
+  from {opacity: 0; transform: translateY(-4px);}
+  to {opacity: 1; transform: translateY(0);}
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 # ---------- DEFAULTS (overridden by bottom Settings via session_state) ----------
 DEFAULTS = dict(
     PROJECT="trashtalkerobjectdetection-7pded",
@@ -624,115 +829,133 @@ def load_fit_dark(path, box_size=(400, 300), bg_color=(14, 17, 23)):
     blended.paste(img, (x, y))
 
     return blended
-
 import streamlit.components.v1 as components
 
-# Inject JS + CSS to restyle only arrow buttons dynamically
-components.html("""
-<script>
-window.addEventListener('load', () => {
-  // Look for buttons that contain only "←" or "→"
-  const btns = Array.from(document.querySelectorAll('button')).filter(b => {
-    const t = b.innerText.trim();
-    return (t === '←' || t === '→');
-  });
-  btns.forEach(b => {
-    b.style.background = 'linear-gradient(90deg,#2563eb,#22c55e)';
-    b.style.color = '#ffffff';
-    b.style.border = 'none';
-    b.style.borderRadius = '50%';
-    b.style.width = '48px';
-    b.style.height = '48px';
-    b.style.fontSize = '22px';
-    b.style.fontWeight = '700';
-    b.style.boxShadow = '0 4px 14px rgba(37,99,235,0.25), 0 4px 14px rgba(34,197,94,0.25)';
-    b.style.transition = 'all 0.25s ease-in-out';
-    b.style.cursor = 'pointer';
-    b.style.display = 'inline-flex';
-    b.style.alignItems = 'center';
-    b.style.justifyContent = 'center';
-  });
+# ---------- CONFIG ----------
+CONTAINER_HEIGHT = 400  # keep both columns equal height
+BUTTON_STYLE = """
+background: linear-gradient(90deg,#2563eb,#22c55e);
+color: white;
+border: none;
+border-radius: 50%;
+width: 46px;
+height: 46px;
+font-size: 22px;
+font-weight: 700;
+cursor: pointer;
+box-shadow: 0 4px 14px rgba(37,99,235,0.25),
+             0 4px 14px rgba(34,197,94,0.25);
+transition: all 0.25s ease-in-out;
+"""
 
-  // Add hover + active interaction
-  btns.forEach(b => {
-    b.addEventListener('mouseenter', () => {
-      b.style.filter = 'brightness(1.1)';
-      b.style.transform = 'translateY(-2px)';
-    });
-    b.addEventListener('mouseleave', () => {
-      b.style.filter = '';
-      b.style.transform = '';
-    });
-    b.addEventListener('mousedown', () => {
-      b.style.transform = 'scale(0.94)';
-      b.style.filter = 'brightness(0.9)';
-    });
-    b.addEventListener('mouseup', () => {
-      b.style.transform = '';
-      b.style.filter = '';
-    });
-  });
-});
-</script>
-""", height=0)
+# ---------- HELPERS ----------
+def render_arrow_buttons(left_key, right_key):
+    """Renders blue-green gradient arrow buttons, isolated from Streamlit defaults."""
+    col_a, _, col_b = st.columns([1, 6, 1])
+    clicked = {"left": False, "right": False}
 
+    # Add HTML buttons manually so we can fully control style and still detect clicks
+    with col_a:
+        clicked["left"] = st.markdown(
+            f"""
+            <form action="" method="get">
+                <button name="{left_key}" type="submit" class="carousel-arrow">←</button>
+            </form>
+            """,
+            unsafe_allow_html=True,
+        )
+    with col_b:
+        clicked["right"] = st.markdown(
+            f"""
+            <form action="" method="get">
+                <button name="{right_key}" type="submit" class="carousel-arrow">→</button>
+            </form>
+            """,
+            unsafe_allow_html=True,
+        )
 
-# Left column — TrashTalker images
-with col_left:
-    st.markdown("<div class='subheading'>TrashTalker Smart Bin Prototype</div>", unsafe_allow_html=True)
-
-    img = load_fit_dark(trash_images[st.session_state.trash_idx])
-    st.image(img, use_container_width=True)
-
-    c1, c2, c3 = st.columns([1, 4, 1])
-    with c1:
-        if st.button("←", key="prev_trash_btn"):
-            st.session_state.trash_idx = (st.session_state.trash_idx - 1) % len(trash_images)
-
-    with c3:
-        if st.button("→", key="next_trash_btn"):
-            st.session_state.trash_idx = (st.session_state.trash_idx + 1) % len(trash_images)
-
+    # Style *only* these buttons using the class name .carousel-arrow
     st.markdown(
-        f"<p style='text-align:center;color:#9ca3af;'>Image {st.session_state.trash_idx+1} of {len(trash_images)}</p>",
+        """
+        <style>
+        .carousel-arrow {
+            background: linear-gradient(90deg,#2563eb,#22c55e);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 46px;
+            height: 46px;
+            font-size: 22px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(37,99,235,0.25),
+                         0 4px 14px rgba(34,197,94,0.25);
+            transition: all 0.25s ease-in-out;
+        }
+        .carousel-arrow:hover {
+            filter: brightness(1.1);
+            transform: translateY(-2px);
+        }
+        .carousel-arrow:active {
+            transform: scale(0.95);
+            filter: brightness(0.9);
+        }
+        form { display:inline; }
+        </style>
+        """,
         unsafe_allow_html=True,
     )
 
+    # Detect which was pressed
+    query_params = st.query_params
+    if left_key in query_params:
+        st.session_state[left_key] = True
+    elif right_key in query_params:
+        st.session_state[right_key] = True
+    else:
+        st.session_state[left_key] = st.session_state.get(left_key, False)
+        st.session_state[right_key] = st.session_state.get(right_key, False)
 
-# Right column — NexTrex images
-with col_right:
-    st.markdown("<div class='subheading'>NexTrex Sustainability Initiative</div>", unsafe_allow_html=True)
+    return {"left": st.session_state[left_key], "right": st.session_state[right_key]}
 
-    img = load_fit_dark(nextrex_images[st.session_state.nextrex_idx])
-    st.image(img, use_container_width=True)
 
-    c1, c2, c3 = st.columns([1, 4, 1])
-    with c1:
-        st.markdown('<div class="arrow-btn">', unsafe_allow_html=True)
-        if st.button("←", key="prev_nextrex_btn"):
-            st.session_state.nextrex_idx = (st.session_state.nextrex_idx - 1) % len(nextrex_images)
-        st.markdown('</div>', unsafe_allow_html=True)
-    with c3:
-        st.markdown('<div class="arrow-btn">', unsafe_allow_html=True)
-        if st.button("→", key="next_nextrex_btn"):
-            st.session_state.nextrex_idx = (st.session_state.nextrex_idx + 1) % len(nextrex_images)
-        st.markdown('</div>', unsafe_allow_html=True)
+# ---------- TWO COLUMN LAYOUT ----------
+col_left, col_right = st.columns(2, gap="large")
 
-    st.markdown(
-        f"<p style='text-align:center;color:#9ca3af;'>Image {st.session_state.nextrex_idx+1} of {len(nextrex_images)}</p>",
-        unsafe_allow_html=True,
-    )
+for col, title, images, idx_key in [
+    (col_left, "TrashTalker Smart Bin Prototype", trash_images, "trash_idx"),
+    (col_right, "NexTrex Sustainability Initiative", nextrex_images, "nextrex_idx"),
+]:
+    with col:
+        # Header (tight margin)
+        st.markdown(
+            f"<div class='subheading' style='margin-top:8px;margin-bottom:6px;text-align:center;'>{title}</div>",
+            unsafe_allow_html=True,
+        )
 
-st.markdown("<div style='height:6vh;'></div>", unsafe_allow_html=True)
+        # Equal-height container
+        st.markdown(
+            f"<div style='min-height:{CONTAINER_HEIGHT}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;'>",
+            unsafe_allow_html=True,
+        )
 
-st.markdown("""
-<div class="hero-wrap" style="margin-top:0; margin-bottom:16px;">
-  <div class="hero-subtitle">
-    AI Engine to detect non-recyclable plastic
-  </div>
-  <div class="hero-accent"></div>
-</div>
-""", unsafe_allow_html=True)
+        # Load and display image
+        img = load_fit_dark(images[st.session_state[idx_key]])
+        st.image(img, use_container_width=True)
+
+        # Gradient arrow buttons (perfectly centered)
+        clicks = render_arrow_buttons(f"{idx_key}_prev", f"{idx_key}_next")
+        if clicks["left"]:
+            st.session_state[idx_key] = (st.session_state[idx_key] - 1) % len(images)
+        elif clicks["right"]:
+            st.session_state[idx_key] = (st.session_state[idx_key] + 1) % len(images)
+
+        # Image index indicator
+        st.markdown(
+            f"<p style='text-align:center;color:#6b7280;margin-top:4px;'>Image {st.session_state[idx_key]+1} of {len(images)}</p>",
+            unsafe_allow_html=True,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown("<div class='tagline centered'><strong>Check non-recylcable plastic: Upload or take a picture </strong></div>", unsafe_allow_html=True)
 
