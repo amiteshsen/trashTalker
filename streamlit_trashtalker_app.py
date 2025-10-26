@@ -444,6 +444,78 @@ img {
     box-shadow: 0 4px 16px rgba(0,0,0,0.25);
 }
 
+/* ==== Arrow Buttons Styled to Match Hero Tagline ==== */
+.carousel-arrow {
+  background: linear-gradient(90deg, #22c55e, #38bdf8); /* same gradient as hero-tagline */
+  color: white;
+  border: none;
+  border-radius: 999px;
+  width: 46px;
+  height: 46px;
+  font-size: 22px;
+  font-weight: bold;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.2), 0 4px 16px rgba(56, 189, 248, 0.2);
+  transition: all 0.25s ease-in-out;
+}
+
+/* Hover & active state */
+.carousel-arrow:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(56, 189, 248, 0.3);
+}
+.carousel-arrow:active {
+  transform: scale(0.95);
+}
+
+/* Center arrows beside the image */
+.carousel-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+/* ==== Themed Arrow Buttons (Blue-Green Gradient) ==== */
+.arrow-btn > button {
+  background: linear-gradient(90deg, #2563eb, #22c55e) !important;  /* theme gradient */
+  color: white !important;
+  border: none !important;
+  border-radius: 999px !important;
+  width: 46px !important;
+  height: 46px !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(37,99,235,0.25), 0 4px 14px rgba(34,197,94,0.25);
+  transition: all 0.25s ease-in-out;
+}
+
+/* Hover and active effects */
+.arrow-btn > button:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(37,99,235,0.35), 0 6px 18px rgba(34,197,94,0.35);
+}
+
+.arrow-btn > button:active {
+  transform: scale(0.94);
+  filter: brightness(0.95);
+}
+
+/* Optional subtle spacing for arrows beside images */
+.arrow-btn {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -479,6 +551,7 @@ st.markdown("""
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ---------- IMAGE SLIDER SECTION ----------
+
 col_left, col_right = st.columns(2, gap="large")
 
 BASE_DIR = os.path.dirname(__file__)
@@ -561,15 +634,21 @@ with col_left:
 
     c1, c2, c3 = st.columns([1, 4, 1])
     with c1:
-        if st.button("←", key="prev_trash"):
+        st.markdown('<div class="arrow-btn">', unsafe_allow_html=True)
+        if st.button("←", key="prev_trash_btn"):
             st.session_state.trash_idx = (st.session_state.trash_idx - 1) % len(trash_images)
+        st.markdown('</div>', unsafe_allow_html=True)
     with c3:
-        if st.button("→", key="next_trash"):
+        st.markdown('<div class="arrow-btn">', unsafe_allow_html=True)
+        if st.button("→", key="next_trash_btn"):
             st.session_state.trash_idx = (st.session_state.trash_idx + 1) % len(trash_images)
+        st.markdown('</div>', unsafe_allow_html=True)
+
     st.markdown(
-        f"<p style='text-align:center;color:#6b7280;'>Image {st.session_state.trash_idx+1} of {len(trash_images)}</p>",
+        f"<p style='text-align:center;color:#9ca3af;'>Image {st.session_state.trash_idx+1} of {len(trash_images)}</p>",
         unsafe_allow_html=True,
     )
+
 
 # Right column — NexTrex images
 with col_right:
@@ -580,15 +659,21 @@ with col_right:
 
     c1, c2, c3 = st.columns([1, 4, 1])
     with c1:
-        if st.button("←", key="prev_nextrex"):
+        st.markdown('<div class="arrow-btn">', unsafe_allow_html=True)
+        if st.button("←", key="prev_nextrex_btn"):
             st.session_state.nextrex_idx = (st.session_state.nextrex_idx - 1) % len(nextrex_images)
+        st.markdown('</div>', unsafe_allow_html=True)
     with c3:
-        if st.button("→", key="next_nextrex"):
+        st.markdown('<div class="arrow-btn">', unsafe_allow_html=True)
+        if st.button("→", key="next_nextrex_btn"):
             st.session_state.nextrex_idx = (st.session_state.nextrex_idx + 1) % len(nextrex_images)
+        st.markdown('</div>', unsafe_allow_html=True)
+
     st.markdown(
-        f"<p style='text-align:center;color:#6b7280;'>Image {st.session_state.nextrex_idx+1} of {len(nextrex_images)}</p>",
+        f"<p style='text-align:center;color:#9ca3af;'>Image {st.session_state.nextrex_idx+1} of {len(nextrex_images)}</p>",
         unsafe_allow_html=True,
     )
+
 st.markdown("<div style='height:6vh;'></div>", unsafe_allow_html=True)
 
 st.markdown("""
