@@ -1,5 +1,5 @@
 import io, re, requests
-from PIL import Image, ImageOps, ImageDraw
+from PIL import Image, ImageOps, ImageDraw, ImageFilter
 import pandas as pd
 import streamlit as st
 import threading
@@ -150,6 +150,22 @@ section.main > div:first-child {
 /* === Optional: hide Streamlit header space (if logged in) === */
 [data-testid="stHeader"] {
     display: none;
+}
+
+/* === Unified Blue-Green Gradient Theme === */
+.subheading {
+  text-align: center;
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  font-weight: 800;
+  font-size: clamp(18px, 2vw, 26px);
+  margin-top: 12px;
+  margin-bottom: 14px;
+  background: linear-gradient(90deg, #2563eb 0%, #22c55e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.08));
+  letter-spacing: 0.03em;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -495,11 +511,49 @@ def load_uniform(path, box_size=(400, 300), fill=(245, 245, 245)):
     bg.paste(img, (x, y))
     return bg
 
+def load_filled(path, box_size=(400, 300)):
+    """
+    Open image, correct EXIF orientation, and fill the box by center-cropping.
+    Produces clean, edge-to-edge images without gray padding.
+    """
+    img = Image.open(path).convert("RGB")
+    img = ImageOps.exif_transpose(img)  # fix sideways rotation
+    # --- Fill the box instead of padding it ---
+    img = ImageOps.fit(img, box_size, Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+    return img
+
+def load_fit_black(path, box_size=(400, 300)):
+    """
+    Open image, fix orientation, and fit it into a black background box
+    (no cropping, keeps full image visible and centered).
+    """
+    img = Image.open(path).convert("RGB")
+    img = ImageOps.exif_transpose(img)
+
+    # Resize image to fit inside the box (no cropping)
+    img.thumbnail(box_size, Image.Resampling.LANCZOS)
+
+    # Create solid black background
+    bg = Image.new("RGB", box_size, (0, 0, 0))
+
+    # Center the image
+    x = (box_size[0] - img.width) // 2
+    y = (box_size[1] - img.height) // 2
+    bg.paste(img, (x, y))
+
+    # Optional: smooth visual blend (very subtle)
+    blended = Image.blend(bg, bg.filter(ImageFilter.GaussianBlur(6)), alpha=0.02)
+    blended.paste(img, (x, y))
+
+    return blended
+
 # Left column — TrashTalker images
 with col_left:
-    st.markdown("### TrashTalker Smart Bin Prototype")
-    img = load_uniform(trash_images[st.session_state.trash_idx])
-    st.image(img, use_container_width=True)
+    st.markdown("<div class='subheading'>TrashTalker Smart Bin Prototype</div>", unsafe_allow_html=True)
+
+    trash_img = load_fit_black(trash_images[st.session_state.trash_idx])
+    st.image(trash_img, use_container_width=True)
+
     c1, c2, c3 = st.columns([1, 4, 1])
     with c1:
         if st.button("←", key="prev_trash"):
@@ -514,9 +568,11 @@ with col_left:
 
 # Right column — NexTrex images
 with col_right:
-    st.markdown("### NexTrex Sustainability Initiative")
-    img = load_uniform(nextrex_images[st.session_state.nextrex_idx])
-    st.image(img, use_container_width=True)
+    st.markdown("<div class='subheading'>NexTrex Sustainability Initiative</div>", unsafe_allow_html=True)
+
+    nextrex_img = load_fit_black(nextrex_images[st.session_state.nextrex_idx])
+    st.image(nextrex_img, use_container_width=True)
+
     c1, c2, c3 = st.columns([1, 4, 1])
     with c1:
         if st.button("←", key="prev_nextrex"):
