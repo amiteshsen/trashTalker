@@ -439,6 +439,11 @@ section.main > div:first-child,
     line-height: 1.2;
 }
 
+img {
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -522,27 +527,27 @@ def load_filled(path, box_size=(400, 300)):
     img = ImageOps.fit(img, box_size, Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     return img
 
-def load_fit_black(path, box_size=(400, 300)):
+def load_fit_dark(path, box_size=(400, 300), bg_color=(55, 65, 81)):
     """
-    Open image, fix orientation, and fit it into a black background box
-    (no cropping, keeps full image visible and centered).
+    Open image, fix orientation, and fit it into a Streamlit-dark background box.
+    Keeps full image visible and avoids patchwork. (#374151 ≈ rgb(55,65,81))
     """
     img = Image.open(path).convert("RGB")
     img = ImageOps.exif_transpose(img)
 
-    # Resize image to fit inside the box (no cropping)
+    # Resize to fit completely (no cropping)
     img.thumbnail(box_size, Image.Resampling.LANCZOS)
 
-    # Create solid black background
-    bg = Image.new("RGB", box_size, (0, 0, 0))
+    # Create background matching Streamlit dark theme
+    bg = Image.new("RGB", box_size, bg_color)
 
     # Center the image
     x = (box_size[0] - img.width) // 2
     y = (box_size[1] - img.height) // 2
     bg.paste(img, (x, y))
 
-    # Optional: smooth visual blend (very subtle)
-    blended = Image.blend(bg, bg.filter(ImageFilter.GaussianBlur(6)), alpha=0.02)
+    # Slight softening blend for uniform tone
+    blended = Image.blend(bg, bg.filter(ImageFilter.GaussianBlur(4)), alpha=0.02)
     blended.paste(img, (x, y))
 
     return blended
@@ -551,8 +556,8 @@ def load_fit_black(path, box_size=(400, 300)):
 with col_left:
     st.markdown("<div class='subheading'>TrashTalker Smart Bin Prototype</div>", unsafe_allow_html=True)
 
-    trash_img = load_fit_black(trash_images[st.session_state.trash_idx])
-    st.image(trash_img, use_container_width=True)
+    img = load_fit_dark(trash_images[st.session_state.trash_idx])
+    st.image(img, use_container_width=True)
 
     c1, c2, c3 = st.columns([1, 4, 1])
     with c1:
@@ -570,8 +575,8 @@ with col_left:
 with col_right:
     st.markdown("<div class='subheading'>NexTrex Sustainability Initiative</div>", unsafe_allow_html=True)
 
-    nextrex_img = load_fit_black(nextrex_images[st.session_state.nextrex_idx])
-    st.image(nextrex_img, use_container_width=True)
+    img = load_fit_dark(nextrex_images[st.session_state.nextrex_idx])
+    st.image(img, use_container_width=True)
 
     c1, c2, c3 = st.columns([1, 4, 1])
     with c1:
