@@ -480,42 +480,42 @@ img {
   gap: 18px;
 }
 
-/* ==== Themed Arrow Buttons (Blue-Green Gradient) ==== */
+/* === Themed Circular Arrow Buttons === */
 .arrow-btn > button {
-  background: linear-gradient(90deg, #2563eb, #22c55e) !important;  /* theme gradient */
-  color: white !important;
+  background: linear-gradient(90deg, #2563eb, #22c55e) !important; /* TrashTalker theme */
+  color: #ffffff !important;              /* arrow color */
   border: none !important;
-  border-radius: 999px !important;
-  width: 46px !important;
-  height: 46px !important;
+  border-radius: 50% !important;          /* perfect circle */
+  width: 48px !important;
+  height: 48px !important;
   font-size: 22px !important;
   font-weight: 700 !important;
   cursor: pointer !important;
-  display: inline-flex !important;
+  transition: all 0.25s ease-in-out;
+  box-shadow: 0 4px 14px rgba(37,99,235,0.25), 0 4px 14px rgba(34,197,94,0.25);
+  display: flex !important;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px rgba(37,99,235,0.25), 0 4px 14px rgba(34,197,94,0.25);
-  transition: all 0.25s ease-in-out;
 }
 
-/* Hover and active effects */
+/* Hover: subtle glow + lift */
 .arrow-btn > button:hover {
   filter: brightness(1.1);
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(37,99,235,0.35), 0 6px 18px rgba(34,197,94,0.35);
+  box-shadow: 0 6px 20px rgba(37,99,235,0.35), 0 6px 20px rgba(34,197,94,0.35);
 }
 
+/* Click: tiny shrink */
 .arrow-btn > button:active {
-  transform: scale(0.94);
-  filter: brightness(0.95);
+  transform: scale(0.93);
+  filter: brightness(0.9);
 }
 
-/* Optional subtle spacing for arrows beside images */
+/* Center container so arrows don't misalign */
 .arrow-btn {
   display: flex;
   justify-content: center;
   align-items: center;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -625,6 +625,58 @@ def load_fit_dark(path, box_size=(400, 300), bg_color=(14, 17, 23)):
 
     return blended
 
+import streamlit.components.v1 as components
+
+# Inject JS + CSS to restyle only arrow buttons dynamically
+components.html("""
+<script>
+window.addEventListener('load', () => {
+  // Look for buttons that contain only "←" or "→"
+  const btns = Array.from(document.querySelectorAll('button')).filter(b => {
+    const t = b.innerText.trim();
+    return (t === '←' || t === '→');
+  });
+  btns.forEach(b => {
+    b.style.background = 'linear-gradient(90deg,#2563eb,#22c55e)';
+    b.style.color = '#ffffff';
+    b.style.border = 'none';
+    b.style.borderRadius = '50%';
+    b.style.width = '48px';
+    b.style.height = '48px';
+    b.style.fontSize = '22px';
+    b.style.fontWeight = '700';
+    b.style.boxShadow = '0 4px 14px rgba(37,99,235,0.25), 0 4px 14px rgba(34,197,94,0.25)';
+    b.style.transition = 'all 0.25s ease-in-out';
+    b.style.cursor = 'pointer';
+    b.style.display = 'inline-flex';
+    b.style.alignItems = 'center';
+    b.style.justifyContent = 'center';
+  });
+
+  // Add hover + active interaction
+  btns.forEach(b => {
+    b.addEventListener('mouseenter', () => {
+      b.style.filter = 'brightness(1.1)';
+      b.style.transform = 'translateY(-2px)';
+    });
+    b.addEventListener('mouseleave', () => {
+      b.style.filter = '';
+      b.style.transform = '';
+    });
+    b.addEventListener('mousedown', () => {
+      b.style.transform = 'scale(0.94)';
+      b.style.filter = 'brightness(0.9)';
+    });
+    b.addEventListener('mouseup', () => {
+      b.style.transform = '';
+      b.style.filter = '';
+    });
+  });
+});
+</script>
+""", height=0)
+
+
 # Left column — TrashTalker images
 with col_left:
     st.markdown("<div class='subheading'>TrashTalker Smart Bin Prototype</div>", unsafe_allow_html=True)
@@ -634,15 +686,12 @@ with col_left:
 
     c1, c2, c3 = st.columns([1, 4, 1])
     with c1:
-        st.markdown('<div class="arrow-btn">', unsafe_allow_html=True)
         if st.button("←", key="prev_trash_btn"):
             st.session_state.trash_idx = (st.session_state.trash_idx - 1) % len(trash_images)
-        st.markdown('</div>', unsafe_allow_html=True)
+
     with c3:
-        st.markdown('<div class="arrow-btn">', unsafe_allow_html=True)
         if st.button("→", key="next_trash_btn"):
             st.session_state.trash_idx = (st.session_state.trash_idx + 1) % len(trash_images)
-        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown(
         f"<p style='text-align:center;color:#9ca3af;'>Image {st.session_state.trash_idx+1} of {len(trash_images)}</p>",
