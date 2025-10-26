@@ -128,6 +128,29 @@ st.markdown("""
   outline: 3px solid #93c5fd;           /* focus ring */
   outline-offset: 2px;
 }
+
+/* === Remove top padding added by Streamlit === */
+section.main > div:first-child {
+    padding-top: 0rem !important;
+    margin-top: 0rem !important;
+}
+.block-container {
+    padding-top: 0rem !important;
+    margin-top: 0rem !important;
+}
+
+/* === Force hero header to start fully visible === */
+.hero-wrap {
+    margin-top: 0 !important;
+    padding-top: 20px !important;  /* gentle buffer to prevent clipping */
+    margin-bottom: 16px !important;
+    line-height: 1.2;
+}
+
+/* === Optional: hide Streamlit header space (if logged in) === */
+[data-testid="stHeader"] {
+    display: none;
+}
 </style>
 """, unsafe_allow_html=True)
 
