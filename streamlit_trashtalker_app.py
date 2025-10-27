@@ -5,7 +5,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import threading
 import time
-
+import base64, io
 import os
 BASE_DIR = os.path.dirname(__file__)
 
@@ -779,6 +779,11 @@ if "trash_idx" not in st.session_state:
 if "nextrex_idx" not in st.session_state:
     st.session_state.nextrex_idx = 0
 
+# ✅ Initialize arrow click state flags
+for key in ["trash_idx_prev", "trash_idx_next", "nextrex_idx_prev", "nextrex_idx_next"]:
+    if key not in st.session_state:
+        st.session_state[key] = False
+
 # Helper function to load images safely
 def load_uniform(path, box_size=(400, 300), fill=(245, 245, 245)):
     """Load image with correct EXIF orientation and pad to fixed size."""
@@ -849,77 +854,78 @@ transition: all 0.25s ease-in-out;
 """
 
 # ---------- HELPERS ----------
-def render_arrow_buttons(left_key, right_key):
-    """Renders blue-green gradient arrow buttons, isolated from Streamlit defaults."""
-    col_a, _, col_b = st.columns([1, 6, 1])
-    clicked = {"left": False, "right": False}
+def render_arrow_buttons(idx_key):
+    """Render themed circular arrow buttons; return -1, 0, or +1."""
+    c1, _, c3 = st.columns([1, 6, 1])
+    delta = 0
 
-    # Add HTML buttons manually so we can fully control style and still detect clicks
-    with col_a:
-        clicked["left"] = st.markdown(
-            f"""
-            <form action="" method="get">
-                <button name="{left_key}" type="submit" class="carousel-arrow">←</button>
-            </form>
-            """,
-            unsafe_allow_html=True,
-        )
-    with col_b:
-        clicked["right"] = st.markdown(
-            f"""
-            <form action="" method="get">
-                <button name="{right_key}" type="submit" class="carousel-arrow">→</button>
-            </form>
-            """,
-            unsafe_allow_html=True,
-        )
+    st.markdown("""
+    <style>
+    .stButton > button {
+        background: linear-gradient(90deg, #2563eb, #22c55e) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 50% !important;
+        width: 46px !important;
+        height: 46px !important;
+        font-size: 22px !important;
+        font-weight: 700 !important;
+        cursor: pointer !important;
+        box-shadow: 0 4px 14px rgba(37,99,235,0.25),
+                     0 4px 14px rgba(34,197,94,0.25);
+        transition: all 0.25s ease-in-out;
+    }
+    .stButton > button:hover {
+        filter: brightness(1.1);
+        transform: translateY(-2px);
+    }
+    .stButton > button:active {
+        transform: scale(0.95);
+        filter: brightness(0.9);
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    # Style *only* these buttons using the class name .carousel-arrow
-    st.markdown(
-        """
-        <style>
-        .carousel-arrow {
-            background: linear-gradient(90deg,#2563eb,#22c55e);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 46px;
-            height: 46px;
-            font-size: 22px;
-            font-weight: 700;
-            cursor: pointer;
-            box-shadow: 0 4px 14px rgba(37,99,235,0.25),
-                         0 4px 14px rgba(34,197,94,0.25);
-            transition: all 0.25s ease-in-out;
-        }
-        .carousel-arrow:hover {
-            filter: brightness(1.1);
-            transform: translateY(-2px);
-        }
-        .carousel-arrow:active {
-            transform: scale(0.95);
-            filter: brightness(0.9);
-        }
-        form { display:inline; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    with c1:
+        if st.button("←", key=f"{idx_key}_left"):
+            delta = -1
+    with c3:
+        if st.button("→", key=f"{idx_key}_right"):
+            delta = +1
 
-    # Detect which was pressed
-    query_params = st.query_params
-    if left_key in query_params:
-        st.session_state[left_key] = True
-    elif right_key in query_params:
-        st.session_state[right_key] = True
-    else:
-        st.session_state[left_key] = st.session_state.get(left_key, False)
-        st.session_state[right_key] = st.session_state.get(right_key, False)
-
-    return {"left": st.session_state[left_key], "right": st.session_state[right_key]}
-
+    return delta
 
 # ---------- TWO COLUMN LAYOUT ----------
+col_left, col_right = st.columns(2, gap="large")
+
+# Inject targeted CSS to eliminate Streamlit vertical gaps
+st.markdown("""
+<style>
+/* Tighten spacing between subheading and image */
+.block-container [data-testid="column"] > div {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+.block-container [data-testid="stVerticalBlock"] {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+div[data-testid="stImage"] {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+.subheading {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------- TWO COLUMN LAYOUT ----------
+col_left, col_right = st.columns(2, gap="large")
+import base64, io
+
+# Two columns with equal width
 col_left, col_right = st.columns(2, gap="large")
 
 for col, title, images, idx_key in [
@@ -927,39 +933,64 @@ for col, title, images, idx_key in [
     (col_right, "NexTrex Sustainability Initiative", nextrex_images, "nextrex_idx"),
 ]:
     with col:
-        # Header (tight margin)
-        st.markdown(
-            f"<div class='subheading' style='margin-top:8px;margin-bottom:6px;text-align:center;'>{title}</div>",
-            unsafe_allow_html=True,
-        )
+        # --- Load + normalize image size ---
+        img = load_fit_dark(images[st.session_state[idx_key]], box_size=(400, 300))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG")
+        encoded_img = base64.b64encode(buf.getvalue()).decode()
 
-        # Equal-height container
-        st.markdown(
-            f"<div style='min-height:{CONTAINER_HEIGHT}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;'>",
-            unsafe_allow_html=True,
-        )
+        # --- Unified block with fixed height ---
+        st.markdown(f"""
+        <div class="gallery-item" style="
+            display:flex; 
+            flex-direction:column; 
+            align-items:center; 
+            justify-content:center; 
+            height:420px; 
+            text-align:center; 
+            margin:0; 
+            padding:0;">
+            <div class="subheading" style="margin:0; padding-bottom:6px;">{title}</div>
+            <img src="data:image/jpeg;base64,{encoded_img}"
+                 style="height:300px; width:auto; border-radius:12px; object-fit:contain; display:block;"/>
+            <p style='text-align:center;color:#6b7280;margin:6px 0 0;'>Image {st.session_state[idx_key]+1} of {len(images)}</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        # Load and display image
-        img = load_fit_dark(images[st.session_state[idx_key]])
-        st.image(img, use_container_width=True)
+        # --- Arrows below image ---
+        with st.container():
+            st.markdown("<div style='text-align:center; margin-top:4px;'>", unsafe_allow_html=True)
+            delta = render_arrow_buttons(idx_key)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        # Gradient arrow buttons (perfectly centered)
-        clicks = render_arrow_buttons(f"{idx_key}_prev", f"{idx_key}_next")
-        if clicks["left"]:
-            st.session_state[idx_key] = (st.session_state[idx_key] - 1) % len(images)
-        elif clicks["right"]:
-            st.session_state[idx_key] = (st.session_state[idx_key] + 1) % len(images)
+            if delta != 0:
+                st.session_state[idx_key] = (st.session_state[idx_key] + delta) % len(images)
 
-        # Image index indicator
-        st.markdown(
-            f"<p style='text-align:center;color:#6b7280;margin-top:4px;'>Image {st.session_state[idx_key]+1} of {len(images)}</p>",
-            unsafe_allow_html=True,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+# Add CSS to ensure alignment between both columns
+st.markdown("""
+<style>
+/* Force equal column height and vertical alignment */
+[data-testid="column"] {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
 
-st.markdown("<div class='tagline centered'><strong>Check non-recylcable plastic: Upload or take a picture </strong></div>", unsafe_allow_html=True)
+/* Make both image sections same height */
+.gallery-item {
+    min-height: 420px;
+}
 
-st.markdown("<div class='main-narrow'>", unsafe_allow_html=True)
+/* Center arrows consistently */
+.gallery-item + div {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: -4px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 # ---------- HELPERS ----------
 def compress_image(file_like, max_side=1024, quality=80):
@@ -1027,6 +1058,41 @@ def render_result_banner(is_plastic: bool):
         )
 
 # ---------- INPUT AREA (centered) ----------
+st.markdown("""
+<style>
+/* === FORCE Streamlit red Run Detection button === */
+
+/* Target the specific button text “Run Detection” to isolate it */
+div.stButton > button:has(span:contains("Run Detection")),
+div[class*="run-btn"] > button,
+div[class*="run-btn"] .stButton > button {
+    background: #F63366 !important;          /* Streamlit default red */
+    color: white !important;
+    border: none !important;
+    border-radius: 0.5rem !important;
+    padding: 0.65rem 1.5rem !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    width: auto !important;
+    height: auto !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+/* Hover + active restore defaults */
+div.stButton > button:has(span:contains("Run Detection")):hover,
+div[class*="run-btn"] .stButton > button:hover {
+    background: #ff4b6e !important;          /* lighter hover */
+    transform: none !important;
+    filter: none !important;
+}
+div.stButton > button:has(span:contains("Run Detection")):active,
+div[class*="run-btn"] .stButton > button:active {
+    background: #e0315b !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 tab_up, tab_url, tab_cam = st.tabs(["Upload", "URL", "Camera"])
 
 with tab_up:
@@ -1040,21 +1106,54 @@ with tab_up:
     st.markdown("</div>", unsafe_allow_html=True)
 
 with tab_url:
-    c1, c2, c3 = st.columns([1,2,1])
+    c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        url_in = st.text_input("", placeholder="Paste a PUBLIC image URL", label_visibility="collapsed")
+        url_in = st.text_input(
+            "Image URL",
+            placeholder="Paste a PUBLIC image URL",
+            label_visibility="collapsed"
+        )
 
 with tab_cam:
-    c1, c2, c3 = st.columns([1,2,1])
+    c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        cam_file = st.camera_input("", label_visibility="collapsed")  # centered webcam widget
-
+        cam_file = st.camera_input(
+            "Camera",
+            label_visibility="collapsed"
+        )
 
 left, mid, right = st.columns([1, 1, 1])
 with mid:
-    st.markdown("<div class='run-btn'>", unsafe_allow_html=True)
-    run = st.button("Run Detection", type="primary", use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    # Use HTML for complete control
+    st.markdown("""
+    <div style='text-align:center;'>
+        <button id='run-detect-btn'
+                style="
+                    background-color:#F63366;
+                    color:white;
+                    border:none;
+                    border-radius:8px;
+                    padding:12px 24px;
+                    font-weight:700;
+                    font-size:16px;
+                    cursor:pointer;
+                    box-shadow:0 2px 6px rgba(0,0,0,0.15);
+                "
+                onclick="window.runDetection=true">
+            Run Detection
+        </button>
+    </div>
+    """, unsafe_allow_html=True)
+
+# This button won't directly trigger Streamlit's rerun, so add:
+if "runDetection" not in st.session_state:
+    st.session_state.runDetection = False
+
+# Detect click manually via query param trigger
+if st.query_params.get("runDetection"):
+    run = True
+else:
+    run = False
 
 
 # ---------- INFERENCE ----------
