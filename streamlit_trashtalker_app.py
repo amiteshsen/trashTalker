@@ -766,6 +766,9 @@ trash_images = [
     os.path.join(BASE_DIR, "assets", "smartbin1.jpg"),
     os.path.join(BASE_DIR, "assets", "smartbin2.jpg"),
     os.path.join(BASE_DIR, "assets", "smartbin3.jpg"),
+    os.path.join(BASE_DIR, "assets", "smartbin4.jpg"),
+    os.path.join(BASE_DIR, "assets", "smartbin5.jpg"),
+
 ]
 nextrex_images = [
     os.path.join(BASE_DIR, "assets", "nextrex1.jpg"),
@@ -1090,6 +1093,14 @@ div.stButton > button:has(span:contains("Run Detection")):active,
 div[class*="run-btn"] .stButton > button:active {
     background: #e0315b !important;
 }
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+  [data-testid="stAppViewContainer"] {
+    background-color: #FFFFFF !important;
+  }
 </style>
 """, unsafe_allow_html=True)
 
