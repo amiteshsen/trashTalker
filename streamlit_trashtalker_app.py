@@ -768,6 +768,7 @@ trash_images = [
     os.path.join(BASE_DIR, "assets", "smartbin3.jpg"),
     os.path.join(BASE_DIR, "assets", "smartbin4.jpg"),
     os.path.join(BASE_DIR, "assets", "smartbin5.jpg"),
+    os.path.join(BASE_DIR, "assets", "smartbin6.jpg"),
 
 ]
 nextrex_images = [
