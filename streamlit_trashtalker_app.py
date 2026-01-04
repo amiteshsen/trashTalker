@@ -99,7 +99,7 @@ def render_gallery(title, images, idx_key):
     with cols[2]:
         if st.button("→", key=f"{idx_key}_right"): st.session_state[idx_key]=(st.session_state[idx_key]+1)%len(images)
 
-trash_imgs=[os.path.join(BASE_DIR,"assets",f"smartbin{i}.jpg") for i in range(1,7)]
+trash_imgs=[os.path.join(BASE_DIR,"assets",f"smartbin{i}.jpg") for i in range(1,9)]
 nextrex_imgs=[os.path.join(BASE_DIR,"assets",f"nextrex{i}.jpg") for i in range(1,4)]
 col1,col2=st.columns(2)
 with col1: render_gallery("TrashTalker Smart Bin Prototype", trash_imgs, "trash_idx")
