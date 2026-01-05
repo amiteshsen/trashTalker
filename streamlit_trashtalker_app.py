@@ -85,26 +85,74 @@ def load_fit_dark(path, box_size=(400,300)):
     bg.paste(img, (x,y))
     return bg
 
-def render_gallery(title, images, idx_key):
-    if idx_key not in st.session_state: st.session_state[idx_key]=0
-    img = load_fit_dark(images[st.session_state[idx_key]])
-    buf=io.BytesIO(); img.save(buf,format="JPEG"); encoded=base64.b64encode(buf.getvalue()).decode()
-    st.markdown(f"<div class='gallery-item'><div class='subheading'>{title}</div>"
-                f"<img src='data:image/jpeg;base64,{encoded}' width='400' style='border-radius:12px;'/>"
-                f"<p style='color:#6b7280;'>Image {st.session_state[idx_key]+1} of {len(images)}</p></div>",
-                unsafe_allow_html=True)
-    cols=st.columns([1,1,1])
-    with cols[0]:
-        if st.button("←", key=f"{idx_key}_left"): st.session_state[idx_key]=(st.session_state[idx_key]-1)%len(images)
-    with cols[2]:
-        if st.button("→", key=f"{idx_key}_right"): st.session_state[idx_key]=(st.session_state[idx_key]+1)%len(images)
+# def render_gallery(title, images, idx_key):
+#     if idx_key not in st.session_state: st.session_state[idx_key]=0
+#     img = load_fit_dark(images[st.session_state[idx_key]])
+#     buf=io.BytesIO(); img.save(buf,format="JPEG"); encoded=base64.b64encode(buf.getvalue()).decode()
+#     st.markdown(f"<div class='gallery-item'><div class='subheading'>{title}</div>"
+#                 f"<img src='data:image/jpeg;base64,{encoded}' width='400' style='border-radius:12px;'/>"
+#                 f"<p style='color:#6b7280;'>Image {st.session_state[idx_key]+1} of {len(images)}</p></div>",
+#                 unsafe_allow_html=True)
+#     cols=st.columns([1,1,1])
+#     with cols[0]:
+#         if st.button("←", key=f"{idx_key}_left"): st.session_state[idx_key]=(st.session_state[idx_key]-1)%len(images)
+#     with cols[2]:
+#         if st.button("→", key=f"{idx_key}_right"): st.session_state[idx_key]=(st.session_state[idx_key]+1)%len(images)
+#
+# trash_imgs=[os.path.join(BASE_DIR,"assets",f"smartbin{i}.jpg") for i in range(1,9)]
+# nextrex_imgs=[os.path.join(BASE_DIR,"assets",f"nextrex{i}.jpg") for i in range(1,14)]
+# col1,col2=st.columns(2)
+# with col1: render_gallery("TrashTalker Smart Bin Prototype", trash_imgs, "trash_idx")
+# with col2: render_gallery("NexTrex Sustainability Initiative", nextrex_imgs, "nextrex_idx")
 
+def render_gallery(title, images, idx_key):
+
+    # --- Initialize state ONCE ---
+    if idx_key not in st.session_state:
+        st.session_state[idx_key] = 0
+
+    num_images = len(images)
+
+    # --- Navigation buttons ---
+    cols = st.columns([1, 6, 1])
+    with cols[0]:
+        prev = st.button("←", key=f"{idx_key}_left")
+    with cols[2]:
+        next_ = st.button("→", key=f"{idx_key}_right")
+
+    # --- Update index BEFORE rendering ---
+    if prev:
+        st.session_state[idx_key] = (st.session_state[idx_key] - 1) % num_images
+    if next_:
+        st.session_state[idx_key] = (st.session_state[idx_key] + 1) % num_images
+
+    # --- Load & render image ---
+    img = load_fit_dark(images[st.session_state[idx_key]])
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    encoded = base64.b64encode(buf.getvalue()).decode()
+
+    st.markdown(
+        f"""
+        <div class='gallery-item'>
+            <div class='subheading'>{title}</div>
+            <img src='data:image/jpeg;base64,{encoded}' width='400'
+                 style='border-radius:12px;'/>
+            <p style='color:#6b7280;'>
+                Image {st.session_state[idx_key] + 1} of {num_images}
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 trash_imgs=[os.path.join(BASE_DIR,"assets",f"smartbin{i}.jpg") for i in range(1,9)]
 nextrex_imgs=[os.path.join(BASE_DIR,"assets",f"nextrex{i}.jpg") for i in range(1,14)]
 col1,col2=st.columns(2)
-with col1: render_gallery("TrashTalker Smart Bin Prototype", trash_imgs, "trash_idx")
-with col2: render_gallery("NexTrex Sustainability Initiative", nextrex_imgs, "nextrex_idx")
-
+col1, col2 = st.columns(2)
+with col1:
+    render_gallery("TrashTalker Smart Bin Prototype", trash_imgs, "trash_idx")
+with col2:
+    render_gallery("NexTrex Sustainability Initiative", nextrex_imgs, "nextrex_idx")
 # ---------------- HELPERS ----------------
 def compress_image(file_like, max_side=1024, quality=80):
     im=Image.open(file_like); im=ImageOps.exif_transpose(im); im.thumbnail((max_side,max_side))
